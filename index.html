@@ -1,0 +1,156 @@
+<html>
+<head>
+<style>
+  body {
+    font-family: sans-serif;
+    background-color: #f9f9f9;
+    color: #111;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  body.dark {
+    background-color: #1e1e1e;
+    color: #eee;
+  }
+  #drop-area {
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+  #drop-area:hover {
+    background-color: #f0f0f0;
+  }
+  body.dark #drop-area:hover {
+    background-color: #333;
+  }
+  #convertBtn, #cancel-btn {
+    transition: background-color 0.2s;
+  }
+  #convertBtn:hover, #cancel-btn:hover {
+    background-color: #ddd;
+  }
+  body.dark #convertBtn:hover, body.dark #cancel-btn:hover {
+    background-color: #444;
+  }
+</style>
+</head>
+<body>
+<div style="width: 100%; text-align: right;">
+  <button id="toggle-theme" style="margin-bottom: 10px;">🌙 Toggle Theme</button>
+</div>
+<h1>WAvideo Converter</h1>
+
+<div id="drop-area" style="border: 2px dashed #ccc; border-radius: 10px; padding: 40px; width: 80%; text-align: center; margin-bottom: 20px; cursor: pointer;">
+  Drop video file here or click to select
+  <input type="file" id="file-input" style="display: none;" accept="video/*" />
+</div>
+<div id="file-info" style="margin: 10px 0; font-size: 0.9em; color: #333;"></div>
+
+<label for="format-select">Output format:</label>
+<select id="format-select" style="margin-bottom: 10px;">
+  <option value="mp4" selected>MP4</option>
+  <option value="webm">WebM</option>
+  <option value="mov">MOV</option>
+</select>
+
+<br/>
+
+<button id="convert-btn" disabled>Convert to WhatsApp Format</button>
+
+<div id="status" style="margin-top: 10px;"></div>
+
+<div id="progress-container" style="display: none; margin-top: 10px;">
+  <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
+  <div id="time-estimate" style="margin-top: 5px;"></div>
+  <button id="cancel-btn" style="margin-top: 10px;">Cancel</button>
+</div>
+
+<script>
+  const dropArea = document.getElementById('drop-area');
+  const fileInput = document.getElementById('file-input');
+  const convertBtn = document.getElementById('convert-btn');
+  const fileInfo = document.getElementById('file-info');
+
+  dropArea.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (file) {
+      convertBtn.disabled = false;
+      fileInfo.textContent = `Selected file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+      // Insert Show in Finder button after updating file info
+      let showBtn = document.getElementById('show-in-finder-btn');
+      if (!showBtn) {
+        showBtn = document.createElement('button');
+        showBtn.id = 'show-in-finder-btn';
+        showBtn.style.marginTop = '10px';
+        showBtn.style.display = 'none';
+        showBtn.textContent = '📂 Show in Finder';
+        fileInfo.insertAdjacentElement('afterend', showBtn);
+        showBtn.addEventListener('click', () => {
+          window.electronAPI.revealFile();
+        });
+      }
+      showBtn.style.display = 'block';
+    } else {
+      convertBtn.disabled = true;
+      fileInfo.textContent = '';
+      // Hide Show in Finder button if present
+      let showBtn = document.getElementById('show-in-finder-btn');
+      if (showBtn) showBtn.style.display = 'none';
+    }
+  });
+
+  // Removed: const showInFinderBtn = document.getElementById('show-in-finder-btn');
+
+  // Removed event listener block referencing showInFinderBtn
+
+  // Add convert button click event listener
+  convertBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    console.log('File selected for conversion:', file);
+    const outputFormat = document.getElementById('format-select').value;
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const timeEstimate = document.getElementById('time-estimate');
+    const status = document.getElementById('status');
+
+    if (!file || !outputFormat) return;
+
+    const baseName = file.name.replace(/\.[^/.]+$/, "");
+    const outputFileName = `${baseName}_whatsapp.${outputFormat}`;
+
+    // Reset UI
+    status.innerHTML = '🔄 Preparing...';
+    progressBar.value = 0;
+    progressContainer.style.display = 'block';
+    timeEstimate.textContent = 'Estimated time: ~10 seconds';
+
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 5;
+      progressBar.value = progress;
+      if (progress === 25) status.innerHTML = '⚙️ Encoding...';
+      if (progress === 75) status.innerHTML = '💾 Saving file...';
+      if (progress >= 100) clearInterval(interval);
+    }, 400);
+
+    const result = await window.electronAPI.convertVideo(file.path, outputFileName, outputFileName);
+
+    clearInterval(interval);
+    progressBar.value = 100;
+    timeEstimate.textContent = '';
+
+    if (result.success) {
+      status.innerHTML = `✅ Saved to: ${outputFileName}`;
+    } else {
+      status.innerHTML = `❌ Conversion failed: ${result.error}`;
+    }
+
+    setTimeout(() => {
+      progressContainer.style.display = 'none';
+    }, 1500);
+  });
+</script>
+<footer style="text-align: center; margin-top: 40px; font-size: 0.9em; color: #666;">
+  WAvideo Converter v1.1 — Created by Patrik Björkenheim
+</footer>
+</body>
+</html>
