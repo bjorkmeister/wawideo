@@ -31,7 +31,7 @@
     <section class="workspace-card">
       <div class="status-pill" data-state="idle" data-status>Drop a video to begin</div>
 
-      <label class="dropzone" data-dropzone>
+      <label class="dropzone" data-dropzone for="file-input">
         <input id="file-input" type="file" accept="video/*" hidden />
         <div class="dropzone-visual">
           <div class="icon-circle" aria-hidden="true">
@@ -44,7 +44,7 @@
           <div class="dropzone-copy">
             <h2>Drag &amp; drop your video</h2>
             <p>MP4, MOV, AVI, WebM and more &mdash; files never leave this device.</p>
-            <button type="button" class="ghost-button">Browse files</button>
+            <button type="button" class="ghost-button" data-browse>Browse files</button>
           </div>
         </div>
       </label>

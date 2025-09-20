@@ -54,7 +54,7 @@ WAvideo is now a polished, browser-based WhatsApp video optimizer. Drop any vide
 
 - FFmpeg.wasm runs client-side, so conversions depend on your device's CPU and memory.
 - Very large or long videos may exceed WhatsApp's 16&nbsp;MB limit even after compression—try the **Compact** preset or trim the clip.
-- Requires network access the first time to download the FFmpeg core from jsDelivr.
+- Requires network access the first time to download the FFmpeg core (the app falls back from jsDelivr to unpkg automatically if one CDN is blocked).
 
 ## 🙌 Credits
 

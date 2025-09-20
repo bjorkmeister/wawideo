@@ -1,28 +1,19 @@
 (() => {
   const statusPill = document.querySelector('[data-status]');
-  if (!window.FFmpeg) {
-    if (statusPill) {
-      statusPill.dataset.state = 'error';
-      statusPill.textContent = 'Unable to load FFmpeg.wasm. Check your connection and refresh.';
-    }
-    console.error('FFmpeg global not found.');
-    return;
-  }
-
-  const {
-    createFFmpeg,
-    fetchFile
-  } = window.FFmpeg;
-
-  const CORE_PATH = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.4/dist/ffmpeg-core.js';
-  const ffmpeg = createFFmpeg({
-    log: false,
-    corePath: CORE_PATH
-  });
+  const FFMPEG_VERSION = '0.12.4';
+  const FFMPEG_SCRIPT_SOURCES = [
+    `https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/ffmpeg.min.js`,
+    `https://unpkg.com/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/ffmpeg.min.js`
+  ];
+  const FFMPEG_CORE_PATHS = [
+    `https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@${FFMPEG_VERSION}/dist/ffmpeg-core.js`,
+    `https://unpkg.com/@ffmpeg/core-st@${FFMPEG_VERSION}/dist/ffmpeg-core.js`
+  ];
 
   const elements = {
     dropzone: document.querySelector('[data-dropzone]'),
     fileInput: document.getElementById('file-input'),
+    browseButton: document.querySelector('[data-browse]'),
     convertButton: document.getElementById('convert-btn'),
     fileSummary: document.querySelector('[data-file-summary]'),
     fileName: document.querySelector('[data-file-name]'),
@@ -47,6 +38,14 @@
     buttonText: document.querySelector('#convert-btn .button-text')
   };
 
+  const state = {
+    fetchFile: null,
+    ffmpeg: null,
+    ffmpegReady: false,
+    ffmpegModulePromise: null,
+    ffmpegLoadingPromise: null
+  };
+
   const qualityProfiles = {
     crisp: { crf: 23, maxRate: 3500 },
     balanced: { crf: 26, maxRate: 2500 },
@@ -61,10 +60,9 @@
   };
 
   let selectedFile = null;
-  let ffmpegReady = false;
-  let ffmpegLoadingPromise = null;
   let outputUrl = null;
   let isConverting = false;
+  let dragDepth = 0;
 
   const WHATSAPP_LIMIT_BYTES = 16 * 1024 * 1024;
 
@@ -192,6 +190,125 @@
     return `scale='if(gt(iw,ih),min(${limit},iw),-2)':'if(gt(iw,ih),-2,min(${limit},ih))',setsar=1`;
   }
 
+  function resolveFFmpegGlobal() {
+    const module = window.FFmpeg;
+    if (module && typeof module.createFFmpeg === 'function' && typeof module.fetchFile === 'function') {
+      return module;
+    }
+    return null;
+  }
+
+  function loadExternalScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = Array.from(document.querySelectorAll('script[data-ffmpeg-src]'))
+        .find((script) => script.dataset.ffmpegSrc === src);
+
+      if (existing) {
+        if (existing.dataset.loaded === 'true') {
+          resolve();
+          return;
+        }
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error(`Failed to load FFmpeg library from ${src}`)), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      script.dataset.ffmpegSrc = src;
+      script.addEventListener('load', () => {
+        script.dataset.loaded = 'true';
+        resolve();
+      }, { once: true });
+      script.addEventListener('error', () => {
+        script.dataset.loaded = 'error';
+        script.remove();
+        reject(new Error(`Failed to load FFmpeg library from ${src}`));
+      }, { once: true });
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensureFFmpegModule() {
+    const existing = resolveFFmpegGlobal();
+    if (existing) {
+      state.fetchFile = existing.fetchFile;
+      return existing;
+    }
+
+    if (!state.ffmpegModulePromise) {
+      state.ffmpegModulePromise = (async () => {
+        let lastError = null;
+        for (const src of FFMPEG_SCRIPT_SOURCES) {
+          try {
+            await loadExternalScript(src);
+            const loaded = resolveFFmpegGlobal();
+            if (loaded) {
+              state.fetchFile = loaded.fetchFile;
+              return loaded;
+            }
+            lastError = new Error('FFmpeg library loaded without exposing a usable global.');
+          } catch (error) {
+            lastError = error;
+            console.warn(`FFmpeg script load failed from ${src}`, error);
+          }
+        }
+        throw lastError || new Error('Unable to download the FFmpeg engine. Check your connection and try again.');
+      })();
+    }
+
+    try {
+      return await state.ffmpegModulePromise;
+    } catch (error) {
+      state.ffmpegModulePromise = null;
+      throw error;
+    }
+  }
+
+  async function ensureFFmpegLoaded() {
+    const module = await ensureFFmpegModule();
+    const fetcher = state.fetchFile || module.fetchFile;
+
+    if (state.ffmpegReady && state.ffmpeg) {
+      state.fetchFile = fetcher;
+      return { instance: state.ffmpeg, fetchFile: state.fetchFile };
+    }
+
+    if (!state.ffmpegLoadingPromise) {
+      state.ffmpegLoadingPromise = (async () => {
+        let lastError = null;
+        for (const corePath of FFMPEG_CORE_PATHS) {
+          try {
+            const instance = module.createFFmpeg({ log: false, corePath });
+            await instance.load();
+            state.ffmpeg = instance;
+            state.ffmpegReady = true;
+            return instance;
+          } catch (error) {
+            lastError = error;
+            console.warn(`FFmpeg core load failed from ${corePath}`, error);
+          }
+        }
+        state.ffmpeg = null;
+        state.ffmpegReady = false;
+        throw lastError || new Error('Unable to load the FFmpeg core files. Check your connection and try again.');
+      })();
+    }
+
+    try {
+      const instance = await state.ffmpegLoadingPromise;
+      state.fetchFile = fetcher;
+      return { instance, fetchFile: state.fetchFile };
+    } catch (error) {
+      state.ffmpegLoadingPromise = null;
+      state.ffmpegReady = false;
+      state.ffmpeg = null;
+      throw error;
+    }
+  }
+
   async function readVideoMetadata(file) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
@@ -213,22 +330,6 @@
         reject(new Error('Could not read metadata'));
       };
     });
-  }
-
-  async function ensureFFmpegLoaded() {
-    if (ffmpegReady) return ffmpeg;
-    if (!ffmpegLoadingPromise) {
-      ffmpegLoadingPromise = ffmpeg.load()
-        .then(() => {
-          ffmpegReady = true;
-          return ffmpeg;
-        })
-        .catch((error) => {
-          ffmpegLoadingPromise = null;
-          throw error;
-        });
-    }
-    return ffmpegLoadingPromise;
   }
 
   function showResult(blob, filename) {
@@ -299,6 +400,24 @@
     return args;
   }
 
+  function isFileDrag(event) {
+    const dataTransfer = event?.dataTransfer;
+    if (!dataTransfer) return false;
+    if (dataTransfer.files && dataTransfer.files.length > 0) return true;
+    if (dataTransfer.items && Array.from(dataTransfer.items).some((item) => item.kind === 'file')) {
+      return true;
+    }
+    const { types } = dataTransfer;
+    if (!types) return false;
+    if (typeof types.includes === 'function') {
+      return types.includes('Files');
+    }
+    if (typeof types.contains === 'function') {
+      return types.contains('Files');
+    }
+    return false;
+  }
+
   function handleFile(file) {
     if (!file) return;
     if (!file.type.startsWith('video/')) {
@@ -362,6 +481,13 @@
           elements.fileResolution.textContent = '—';
         }
       });
+
+    ensureFFmpegModule().catch((error) => {
+      console.error('FFmpeg preload failed', error);
+      if (selectedFile === file) {
+        updateStatus('error', error?.message || 'Unable to download the FFmpeg engine. Check your connection and try again.');
+      }
+    });
   }
 
   async function convertVideo() {
@@ -383,11 +509,18 @@
 
     let inputName;
     let outputName;
+    let ffmpegInstance = null;
+    let fetchFileFn = null;
 
     try {
-      const instance = await ensureFFmpegLoaded();
+      const { instance, fetchFile: resolvedFetchFile } = await ensureFFmpegLoaded();
+      ffmpegInstance = instance;
+      fetchFileFn = resolvedFetchFile;
+      if (typeof fetchFileFn !== 'function') {
+        throw new Error('FFmpeg fetch helper unavailable. Please refresh and try again.');
+      }
       updateStatus('busy', 'Encoding for WhatsApp…');
-      instance.setProgress(({ ratio }) => {
+      ffmpegInstance.setProgress(({ ratio }) => {
         const percent = Math.min(99, Math.round(ratio * 100));
         setProgress(percent);
         updateStage(percent);
@@ -399,12 +532,12 @@
 
       setProgress(12);
       updateStage(12);
-      instance.FS('writeFile', inputName, await fetchFile(selectedFile));
+      ffmpegInstance.FS('writeFile', inputName, await fetchFileFn(selectedFile));
 
       const args = buildArguments(inputName, outputName);
-      await instance.run(...args);
+      await ffmpegInstance.run(...args);
 
-      const data = instance.FS('readFile', outputName);
+      const data = ffmpegInstance.FS('readFile', outputName);
       const blob = new Blob([data.buffer], { type: 'video/mp4' });
       showResult(blob, outputName);
       setProgress(100);
@@ -413,14 +546,17 @@
     } catch (error) {
       console.error('Conversion failed', error);
       updateStatus('error', `Conversion failed: ${error?.message || error}`);
+      if (elements.progressPanel) {
+        elements.progressPanel.hidden = true;
+      }
     } finally {
       try {
-        if (inputName) ffmpeg.FS('unlink', inputName);
+        if (inputName && ffmpegInstance) ffmpegInstance.FS('unlink', inputName);
       } catch (err) {
         // ignore cleanup errors
       }
       try {
-        if (outputName) ffmpeg.FS('unlink', outputName);
+        if (outputName && ffmpegInstance) ffmpegInstance.FS('unlink', outputName);
       } catch (err) {
         // ignore cleanup errors
       }
@@ -434,17 +570,42 @@
     }
   }
 
+  ['dragenter', 'dragover', 'drop'].forEach((type) => {
+    document.addEventListener(type, (event) => {
+      if (!isFileDrag(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (type === 'drop' && elements.dropzone) {
+        dragDepth = 0;
+        elements.dropzone.classList.remove('is-dragover');
+      }
+    });
+  });
+
+  document.addEventListener('dragleave', (event) => {
+    if (!isFileDrag(event)) return;
+    if (!event.relatedTarget || event.relatedTarget === document.documentElement) {
+      dragDepth = 0;
+      elements.dropzone?.classList.remove('is-dragover');
+    }
+  });
+
   if (elements.dropzone) {
-    let dragDepth = 0;
     elements.dropzone.addEventListener('dragenter', (event) => {
+      if (!isFileDrag(event)) return;
       event.preventDefault();
       dragDepth += 1;
       elements.dropzone.classList.add('is-dragover');
     });
     elements.dropzone.addEventListener('dragover', (event) => {
+      if (!isFileDrag(event)) return;
       event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+      }
     });
     elements.dropzone.addEventListener('dragleave', (event) => {
+      if (!isFileDrag(event)) return;
       event.preventDefault();
       dragDepth = Math.max(0, dragDepth - 1);
       if (dragDepth === 0) {
@@ -452,11 +613,22 @@
       }
     });
     elements.dropzone.addEventListener('drop', (event) => {
+      if (!isFileDrag(event)) return;
       event.preventDefault();
       dragDepth = 0;
       elements.dropzone.classList.remove('is-dragover');
       const file = event.dataTransfer?.files?.[0];
-      handleFile(file);
+      if (file) {
+        handleFile(file);
+      }
+    });
+  }
+
+  if (elements.browseButton) {
+    elements.browseButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      elements.fileInput?.click();
     });
   }
 
