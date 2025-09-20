@@ -1,156 +1,156 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<style>
-  body {
-    font-family: sans-serif;
-    background-color: #f9f9f9;
-    color: #111;
-    transition: background-color 0.3s, color 0.3s;
-  }
-  body.dark {
-    background-color: #1e1e1e;
-    color: #eee;
-  }
-  #drop-area {
-    transition: background-color 0.3s, border-color 0.3s;
-  }
-  #drop-area:hover {
-    background-color: #f0f0f0;
-  }
-  body.dark #drop-area:hover {
-    background-color: #333;
-  }
-  #convertBtn, #cancel-btn {
-    transition: background-color 0.2s;
-  }
-  #convertBtn:hover, #cancel-btn:hover {
-    background-color: #ddd;
-  }
-  body.dark #convertBtn:hover, body.dark #cancel-btn:hover {
-    background-color: #444;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WAvideo · WhatsApp Video Optimizer</title>
+  <meta name="description" content="Convert any video into a WhatsApp-friendly MP4 in seconds. Everything runs locally in your browser with FFmpeg WebAssembly." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.4/dist/ffmpeg.min.js"></script>
+  <script defer src="app.js"></script>
 </head>
 <body>
-<div style="width: 100%; text-align: right;">
-  <button id="toggle-theme" style="margin-bottom: 10px;">🌙 Toggle Theme</button>
-</div>
-<h1>WAvideo Converter</h1>
+  <main class="layout">
+    <section class="intro">
+      <span class="badge">WhatsApp ready</span>
+      <h1>WAvideo</h1>
+      <p class="lead">
+        A polished web converter that optimises any clip into a WhatsApp-friendly MP4.
+        No uploads, no waiting &mdash; everything happens locally with FFmpeg WebAssembly.
+      </p>
+      <ul class="highlights">
+        <li>Smart compression profiles tuned for WhatsApp's 16&nbsp;MB sharing limit.</li>
+        <li>Automatic H.264 + AAC output at 30&nbsp;fps for cross-platform playback.</li>
+        <li>Optional status trim to keep clips under 30 seconds.</li>
+      </ul>
+    </section>
 
-<div id="drop-area" style="border: 2px dashed #ccc; border-radius: 10px; padding: 40px; width: 80%; text-align: center; margin-bottom: 20px; cursor: pointer;">
-  Drop video file here or click to select
-  <input type="file" id="file-input" style="display: none;" accept="video/*" />
-</div>
-<div id="file-info" style="margin: 10px 0; font-size: 0.9em; color: #333;"></div>
+    <section class="workspace-card">
+      <div class="status-pill" data-state="idle" data-status>Drop a video to begin</div>
 
-<label for="format-select">Output format:</label>
-<select id="format-select" style="margin-bottom: 10px;">
-  <option value="mp4" selected>MP4</option>
-  <option value="webm">WebM</option>
-  <option value="mov">MOV</option>
-</select>
+      <label class="dropzone" data-dropzone>
+        <input id="file-input" type="file" accept="video/*" hidden />
+        <div class="dropzone-visual">
+          <div class="icon-circle" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 7.5C4 5.01472 6.01472 3 8.5 3H12.0858C12.6162 3 13.1249 3.21071 13.5 3.58579L17.4142 7.5C17.7893 7.87507 18 8.38378 18 8.91421V16.5C18 18.9853 15.9853 21 13.5 21H8.5C6.01472 21 4 18.9853 4 16.5V7.5Z" stroke="currentColor" stroke-width="1.5" />
+              <path d="M9 12.5L11.2929 14.7929C11.6834 15.1834 12.3166 15.1834 12.7071 14.7929L15 12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M12 8V13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div class="dropzone-copy">
+            <h2>Drag &amp; drop your video</h2>
+            <p>MP4, MOV, AVI, WebM and more &mdash; files never leave this device.</p>
+            <button type="button" class="ghost-button">Browse files</button>
+          </div>
+        </div>
+      </label>
 
-<br/>
+      <div class="file-summary" data-file-summary hidden>
+        <div class="file-summary-header">
+          <span class="file-name" data-file-name></span>
+          <button type="button" class="text-button" data-reset>Choose another</button>
+        </div>
+        <div class="file-meta-grid">
+          <div>
+            <span class="meta-label">Size</span>
+            <strong data-file-size>&mdash;</strong>
+          </div>
+          <div>
+            <span class="meta-label">Duration</span>
+            <strong data-file-duration>&mdash;</strong>
+          </div>
+          <div>
+            <span class="meta-label">Resolution</span>
+            <strong data-file-resolution>&mdash;</strong>
+          </div>
+        </div>
+      </div>
 
-<button id="convert-btn" disabled>Convert to WhatsApp Format</button>
+      <div class="options-grid">
+        <div class="control">
+          <label for="quality">Compression</label>
+          <select id="quality">
+            <option value="balanced" selected>Balanced · recommended</option>
+            <option value="crisp">Crisp · larger file</option>
+            <option value="compact">Compact · smallest file</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="resolution">Max resolution</label>
+          <select id="resolution">
+            <option value="auto" selected>Auto · ≤1280 px longest side</option>
+            <option value="hd">Full HD · ≤1920 px</option>
+            <option value="sd">Standard · ≤960 px</option>
+            <option value="compact">Compact · ≤720 px</option>
+            <option value="original">Keep original size</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="framerate">Frame rate</label>
+          <select id="framerate">
+            <option value="30" selected>30 fps</option>
+            <option value="25">25 fps</option>
+            <option value="24">24 fps</option>
+          </select>
+        </div>
+      </div>
 
-<div id="status" style="margin-top: 10px;"></div>
+      <label class="toggle">
+        <input type="checkbox" id="trim-status" />
+        <span class="toggle-indicator" aria-hidden="true"></span>
+        <div>
+          <span class="toggle-title">Trim to 30&nbsp;s for Status</span>
+          <span class="toggle-caption">Keeps clips within WhatsApp's story length limit.</span>
+        </div>
+      </label>
 
-<div id="progress-container" style="display: none; margin-top: 10px;">
-  <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
-  <div id="time-estimate" style="margin-top: 5px;"></div>
-  <button id="cancel-btn" style="margin-top: 10px;">Cancel</button>
-</div>
+      <button id="convert-btn" class="primary" disabled>
+        <span class="button-text">Convert for WhatsApp</span>
+      </button>
 
-<script>
-  const dropArea = document.getElementById('drop-area');
-  const fileInput = document.getElementById('file-input');
-  const convertBtn = document.getElementById('convert-btn');
-  const fileInfo = document.getElementById('file-info');
+      <div class="progress-panel" data-progress-panel hidden>
+        <div class="progress-meta">
+          <span data-stage>Preparing FFmpeg</span>
+          <span data-progress-value>0%</span>
+        </div>
+        <div class="progress-bar" data-progress-bar></div>
+      </div>
 
-  dropArea.addEventListener('click', () => fileInput.click());
+      <p class="caption">Powered by FFmpeg.wasm &mdash; videos are processed privately on your device.</p>
 
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
-    if (file) {
-      convertBtn.disabled = false;
-      fileInfo.textContent = `Selected file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
-      // Insert Show in Finder button after updating file info
-      let showBtn = document.getElementById('show-in-finder-btn');
-      if (!showBtn) {
-        showBtn = document.createElement('button');
-        showBtn.id = 'show-in-finder-btn';
-        showBtn.style.marginTop = '10px';
-        showBtn.style.display = 'none';
-        showBtn.textContent = '📂 Show in Finder';
-        fileInfo.insertAdjacentElement('afterend', showBtn);
-        showBtn.addEventListener('click', () => {
-          window.electronAPI.revealFile();
-        });
-      }
-      showBtn.style.display = 'block';
-    } else {
-      convertBtn.disabled = true;
-      fileInfo.textContent = '';
-      // Hide Show in Finder button if present
-      let showBtn = document.getElementById('show-in-finder-btn');
-      if (showBtn) showBtn.style.display = 'none';
-    }
-  });
+      <div class="result" data-result hidden>
+        <div class="result-header">
+          <span class="success-dot" aria-hidden="true"></span>
+          <div>
+            <h3>Conversion complete</h3>
+            <p>Your WhatsApp-optimised video is ready to download.</p>
+          </div>
+        </div>
+        <video controls playsinline data-preview></video>
+        <div class="result-grid">
+          <div>
+            <span class="meta-label">Output size</span>
+            <strong data-output-size>&mdash;</strong>
+          </div>
+          <div>
+            <span class="meta-label">Reduction</span>
+            <strong data-output-reduction>&mdash;</strong>
+          </div>
+        </div>
+        <a class="primary ghost" data-download href="#" download>Download video</a>
+        <p class="warning" data-output-warning hidden>
+          The converted file is above 16&nbsp;MB. Switch to the Compact profile or trim the clip to stay within WhatsApp's limit.
+        </p>
+      </div>
+    </section>
+  </main>
 
-  // Removed: const showInFinderBtn = document.getElementById('show-in-finder-btn');
-
-  // Removed event listener block referencing showInFinderBtn
-
-  // Add convert button click event listener
-  convertBtn.addEventListener('click', async () => {
-    const file = fileInput.files[0];
-    console.log('File selected for conversion:', file);
-    const outputFormat = document.getElementById('format-select').value;
-    const progressContainer = document.getElementById('progress-container');
-    const progressBar = document.getElementById('progress-bar');
-    const timeEstimate = document.getElementById('time-estimate');
-    const status = document.getElementById('status');
-
-    if (!file || !outputFormat) return;
-
-    const baseName = file.name.replace(/\.[^/.]+$/, "");
-    const outputFileName = `${baseName}_whatsapp.${outputFormat}`;
-
-    // Reset UI
-    status.innerHTML = '🔄 Preparing...';
-    progressBar.value = 0;
-    progressContainer.style.display = 'block';
-    timeEstimate.textContent = 'Estimated time: ~10 seconds';
-
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 5;
-      progressBar.value = progress;
-      if (progress === 25) status.innerHTML = '⚙️ Encoding...';
-      if (progress === 75) status.innerHTML = '💾 Saving file...';
-      if (progress >= 100) clearInterval(interval);
-    }, 400);
-
-    const result = await window.electronAPI.convertVideo(file.path, outputFileName, outputFileName);
-
-    clearInterval(interval);
-    progressBar.value = 100;
-    timeEstimate.textContent = '';
-
-    if (result.success) {
-      status.innerHTML = `✅ Saved to: ${outputFileName}`;
-    } else {
-      status.innerHTML = `❌ Conversion failed: ${result.error}`;
-    }
-
-    setTimeout(() => {
-      progressContainer.style.display = 'none';
-    }, 1500);
-  });
-</script>
-<footer style="text-align: center; margin-top: 40px; font-size: 0.9em; color: #666;">
-  WAvideo Converter v1.1 — Created by Patrik Björkenheim
-</footer>
+  <footer class="footer">
+    <span>Built with ❤️ using FFmpeg WebAssembly. Videos never leave your browser.</span>
+  </footer>
 </body>
 </html>
