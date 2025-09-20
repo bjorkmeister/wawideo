@@ -30,6 +30,58 @@
     background-color: #444;
   }
 </style>
+<script>
+  window.__ffmpegFallbackSources = [];
+  window.__loadFfmpegFallback = function loadFfmpegFallback(index = 0) {
+    const localScript = document.querySelector('script[data-ffmpeg-script="local"]');
+    if (localScript) {
+      localScript.dataset.ffmpegFailed = 'true';
+    }
+
+    if (!Array.isArray(window.__ffmpegFallbackSources)) {
+      console.error('[FFmpeg] No fallback sources configured.');
+      return;
+    }
+
+    const candidate = window.__ffmpegFallbackSources[index];
+    if (!candidate) {
+      console.error('[FFmpeg] Failed to load ffmpeg.min.js from every source.');
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = candidate;
+    script.defer = true;
+    script.onload = () => console.info(`[FFmpeg] Loaded fallback script from ${candidate}`);
+    script.onerror = () => {
+      console.warn(`[FFmpeg] Could not load fallback script from ${candidate}`);
+      loadFfmpegFallback(index + 1);
+    };
+    document.head.appendChild(script);
+  };
+</script>
+<script
+  src="vendor/ffmpeg/ffmpeg.min.js"
+  defer
+  data-ffmpeg-script="local"
+  onerror="window.__loadFfmpegFallback(0)"
+></script>
+<script
+  type="text/plain"
+  data-ffmpeg-fallback
+  data-src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.4/dist/ffmpeg.min.js"
+></script>
+<script
+  type="text/plain"
+  data-ffmpeg-fallback
+  data-src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.4/dist/ffmpeg.min.js"
+></script>
+<script>
+  window.__ffmpegFallbackSources = Array.from(
+    document.querySelectorAll('script[data-ffmpeg-fallback]')
+  ).map((element) => element.getAttribute('data-src'));
+</script>
+<script src="app.js" defer></script>
 </head>
 <body>
 <div style="width: 100%; text-align: right;">
